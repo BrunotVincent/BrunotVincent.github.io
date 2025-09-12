@@ -262,7 +262,7 @@ function addMapDrag(map){
 
 // --- Init ---
 async function main(){
-  const brutData = await fetch('adzuna_jobs_stacks.json').then(r=>r.json());
+  const brutData = await fetch('jobs_stacks.json').then(r=>r.json());
 
   let data = applyFilter(brutData);
 
