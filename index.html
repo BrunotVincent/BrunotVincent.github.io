@@ -355,7 +355,7 @@ async function main(){
   document.getElementById('showBase').addEventListener('change', rebuildOverlayLayers);
   document.getElementById('showExtrude').addEventListener('change', rebuildOverlayLayers);
   document.getElementById('scaleMode').addEventListener('change', e=>{currentScaleMode=e.target.value; rebuildOverlayLayers();});
-  document.getElementById('styleMode').addEventListener('change', e=>{currentStyle=e.target.value; map.setStyle(MAP_STYLES[currentStyle].url); rebuildOverlayLayers();updateTextColorForStyle();});
+  document.getElementById('styleMode').addEventListener('change', e=>{currentStyle=e.target.value; map.setStyle(MAP_STYLES[currentStyle].url); rebuildOverlayLayers();updateTextColorForStyle(currentStyle);});
 
   // Toggle contrôles
   document.getElementById('controlsHeader').addEventListener('click', ()=>{ 
