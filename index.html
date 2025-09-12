@@ -51,9 +51,32 @@ html, body, #map { margin:0; padding:0; width:100%; height:100%; }
 #filterContent { padding: 8px; display: block; max-height: 30rem; overflow-y: auto; }
 #filterContent label { display: block; margin: 4px; }
 #filterCheckboxes { max-height: 19.5rem; overflow-y: auto; border:1px solid #ccc; padding:4px; border-radius:4px; background:#fff; }
+#pageTitle {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-family: sans-serif;
+  font-size: 28px;
+  font-weight: bold;
+  color:#4676fccc ;
+  filter: 
+    drop-shadow(-1px -1px 2px rgba(100,100,100,0.3))
+    drop-shadow(1px -1px 2px rgba(100,100,100,0.3))
+    drop-shadow(-1px 1px 2px rgba(100,100,100,0.3))
+    drop-shadow(1px 1px 2px rgba(100,100,100,0.3));
+
+  pointer-events: none; /* ne bloque pas la souris */
+}
+
 </style>
 </head>
 <body>
+<div id="pageTitle">Carte Stacks Dev France</div>
+
 <div id="map"></div>
 
 <!-- Contrôles -->
@@ -148,6 +171,20 @@ const SCALE_MODE = {
   log: { functionSpace: count => count>0?Math.log(count+1):0, linearizeSpace: y => Math.round(Math.exp(y)-1) }
 };
 
+// --- Update color title ---
+
+let textColor = '#4676fccc'; // couleur par défaut pour dark mode
+
+function updateTextColorForStyle(style) {
+  if (style === 'dark') {
+    textColor = '#4676fccc'; // texte clair sur fond sombre
+  } else {
+    textColor = '#210233cc'; // texte sombre sur fond clair
+  }
+  const titleEl = document.getElementById('pageTitle');
+  if (titleEl) titleEl.style.color = textColor;
+}
+
 // --- Palette interpolation ---
 function interpolatePalette(palette, n) {
   if(n<=0) return [];
@@ -225,7 +262,7 @@ function addMapDrag(map){
 
 // --- Init ---
 async function main(){
-  const brutData = await fetch('jobs_stacks.json').then(r=>r.json());
+  const brutData = await fetch('adzuna_jobs_stacks.json').then(r=>r.json());
 
   let data = applyFilter(brutData);
 
@@ -318,7 +355,7 @@ async function main(){
   document.getElementById('showBase').addEventListener('change', rebuildOverlayLayers);
   document.getElementById('showExtrude').addEventListener('change', rebuildOverlayLayers);
   document.getElementById('scaleMode').addEventListener('change', e=>{currentScaleMode=e.target.value; rebuildOverlayLayers();});
-  document.getElementById('styleMode').addEventListener('change', e=>{currentStyle=e.target.value; map.setStyle(MAP_STYLES[currentStyle].url); rebuildOverlayLayers();});
+  document.getElementById('styleMode').addEventListener('change', e=>{currentStyle=e.target.value; map.setStyle(MAP_STYLES[currentStyle].url); rebuildOverlayLayers();updateTextColorForStyle();});
 
   // Toggle contrôles
   document.getElementById('controlsHeader').addEventListener('click', ()=>{ 
