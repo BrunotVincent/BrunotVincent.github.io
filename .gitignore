@@ -1,0 +1,5 @@
+# Ignorer le dossier local de prototypage Vue.js
+/prototype-page/
+.venv
+*.db
+*.ipynb

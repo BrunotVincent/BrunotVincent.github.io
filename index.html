@@ -1,16 +1,344 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <title>Mon Portfolio</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    body { font-family: Arial, sans-serif; padding: 2rem; }
-    h1 { color: #007acc; }
-  </style>
+<meta charset="UTF-8">
+<title>Hexagones avec contrôle pitch/bearing et filtres</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link href="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.css" rel="stylesheet">
+<script src="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.js"></script>
+<script src="https://unpkg.com/deck.gl@9.0.33/dist.min.js"></script>
+<style>
+html, body, #map { margin:0; padding:0; width:100%; height:100%; }
+#controlsContainer { position:absolute; top:10px; left:10px; z-index:1000; }
+#controlsHeader { background:rgba(255,255,255,0.8); padding:6px 10px; border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,0.2); font-family:sans-serif; cursor:pointer; user-select:none; }
+#controlsContent { display:none; background:rgba(255,255,255,0.8); padding:8px; border-radius:6px; margin-top:4px; max-height:80vh; overflow-y:auto; box-shadow:0 2px 6px rgba(0,0,0,0.2); }
+#controlsContent label { display:block; margin-top:5px; }
+#layerToggle { position:absolute; top:10px; right:10px; z-index:1000; background:rgba(255,255,255,0.8); padding:8px; border-radius:6px; font-family:sans-serif; box-shadow:0 2px 6px rgba(0,0,0,0.2); }
+#layerToggle label { display:block; }
+
+/* --- légende --- */
+.legend {
+  position: absolute;
+  bottom: 18px;
+  left: 10px;
+  width: 9rem;
+  padding: 0.5rem;
+  font-family: sans-serif;
+  font-size: 10px;
+  z-index: 1000;
+  background: rgba(255,255,255,0.8);
+  border-radius: 4px;
+}
+.legendColorBar { width: 100%; height: 0.8rem; display: flex; }
+.legendColorBar div { flex: 1; }
+#legendValues { position: relative; width: 100%; height: 1rem; margin-bottom: 0.2rem; }
+#legendValues span { position: absolute; top: 0; transform: translateX(-50%); }
+#minValue { left: 0%; } #midValue { left: 50%; } #maxValue { left: 100%; }
+
+/* --- filtre compétences --- */
+#filterContainer {
+  position: absolute;
+  bottom: 35px;
+  right: 10px;
+  width: 220px;
+  z-index: 1000;
+  font-family: sans-serif;
+  background: rgba(255,255,255,0.8);
+  border-radius: 6px;
+  box-shadow:0 2px 6px rgba(0,0,0,0.2);
+}
+#filterHeader { padding: 6px 10px; cursor: pointer; user-select: none; text-align: end; }
+#filterContent { padding: 8px; display: block; max-height: 30rem; overflow-y: auto; }
+#filterContent label { display: block; margin: 4px; }
+#filterCheckboxes { max-height: 19.5rem; overflow-y: auto; border:1px solid #ccc; padding:4px; border-radius:4px; background:#fff; }
+</style>
 </head>
 <body>
-  <h1>Bienvenue sur mon portfolio !</h1>
-  <p>Je suis développeur web passionné par la création de sites modernes et performants.</p>
+<div id="map"></div>
+
+<!-- Contrôles -->
+<div id="controlsContainer">
+  <div id="controlsHeader">⚙ Paramètres</div>
+  <div id="controlsContent">
+    <label>Rayon hexagones (m):
+      <input type="range" id="radiusSlider" min="500" max="5000" step="50" value="1000">
+      <span id="radiusValue">1000</span>
+    </label>
+    <label>Hauteur 3D (elevationScale):
+      <input type="range" id="elevationSlider" min="10" max="100" step="5" value="50">
+      <span id="elevationValue">50</span>
+    </label>
+    <label>Coverage extrudé:
+      <input type="range" id="coverageSlider" min="0.1" max="1" step="0.05" value="0.8">
+      <span id="coverageValue">0.8</span>
+    </label>
+    <label>Opacité extrudé:
+      <input type="range" id="hexOpacitySlider" min="0.1" max="1" step="0.05" value="0.8">
+      <span id="hexOpacityValue">0.8</span>
+    </label>
+    <label>Coverage base:
+      <input type="range" id="baseCoverageSlider" min="0.1" max="1" step="0.05" value="1">
+      <span id="baseCoverageValue">1</span>
+    </label>
+    <label>Opacité base:
+      <input type="range" id="baseOpacitySlider" min="0.1" max="1" step="0.05" value="0.5">
+      <span id="baseOpacityValue">0.5</span>
+    </label>
+    <label>Échelle couleur:
+      <select id="scaleMode">
+        <option value="linear">Linéraire</option>
+        <option value="log" selected>Logarithmique</option>
+      </select>
+    </label>
+    <label>Style carte:
+      <select id="styleMode">
+        <option value="dark" selected>Dark</option>
+        <option value="light">Light</option>
+      </select>
+    </label>
+  </div>
+</div>
+
+<!-- Toggle layers -->
+<div id="layerToggle">
+  <label><input type="checkbox" id="showBase" checked> Afficher la base</label>
+  <label><input type="checkbox" id="showExtrude" checked> Afficher extrudé</label>
+</div>
+
+<!-- Légende -->
+<div class="legend" id="legendContainer">
+  <div id="legendValues">
+    <span id="minValue">0</span>
+    <span id="midValue">0</span>
+    <span id="maxValue">0</span>
+  </div>
+  <div class="legendColorBar" id="legendBar"></div>
+</div>
+
+<!-- Filtre compétences -->
+<div id="filterContainer">
+  <div id="filterHeader">Filtres stacks ▾</div>
+  <div id="filterContent">
+    <label>Mode de filtre:
+      <select id="filterMode">
+        <option value="OU">OU</option>
+        <option value="ET">ET</option>
+      </select>
+    </label>
+    <div id="filterCheckboxes"></div>
+  </div>
+</div>
+
+<script type="module">
+const {HexagonLayer, MapboxOverlay} = deck;
+
+// --- Map styles ---
+const MAP_STYLES = {
+  dark: { url:'https://basemaps.cartocdn.com/gl/dark-matter-nolabels-gl-style/style.json',
+          colors:[[64,64,255],[64,160,255],[255,255,128],[255,180,80],[255,64,64]] },
+  light:{ url:'https://tiles.openfreemap.org/styles/bright', 
+          colors:[[33,40,230],[151,77,183],[255,204,0],[255,128,0],[204,0,0]] }
+};
+const paletteColorLen = 50;
+let currentStyle='dark', currentScaleMode='log';
+
+// --- Scale mode ---
+const SCALE_MODE = {
+  linear: { functionSpace: count => count>0?count:0, linearizeSpace: y => Math.round(y) },
+  log: { functionSpace: count => count>0?Math.log(count+1):0, linearizeSpace: y => Math.round(Math.exp(y)-1) }
+};
+
+// --- Palette interpolation ---
+function interpolatePalette(palette, n) {
+  if(n<=0) return [];
+  if(palette.length===1) return Array(n).fill(palette[0]);
+  const result = [];
+  const segments = palette.length-1;
+  for(let i=0;i<n;i++){
+    const t=i/(n-1);
+    const segment=Math.min(Math.floor(t*segments), segments-1);
+    const localT=(t-segment/segments)*segments;
+    const c0=palette[segment], c1=palette[segment+1];
+    result.push([
+      Math.round(c0[0]+localT*(c1[0]-c0[0])),
+      Math.round(c0[1]+localT*(c1[1]-c0[1])),
+      Math.round(c0[2]+localT*(c1[2]-c0[2]))
+    ]);
+  }
+  return result;
+}
+
+// --- Légende ---
+function createLegend(interpolatedPalette, minValue, maxValue, scaleMode){
+  const legendBar=document.getElementById('legendBar');
+  legendBar.innerHTML='';
+  interpolatedPalette.forEach(color=>{
+    const div=document.createElement('div');
+    div.style.background=`rgb(${color[0]},${color[1]},${color[2]})`;
+    legendBar.appendChild(div);
+  });
+  const midValueColorSpace=(minValue+maxValue)/2;
+  document.getElementById('minValue').textContent=SCALE_MODE[scaleMode].linearizeSpace(minValue);
+  document.getElementById('midValue').textContent=SCALE_MODE[scaleMode].linearizeSpace(midValueColorSpace);
+  document.getElementById('maxValue').textContent=SCALE_MODE[scaleMode].linearizeSpace(maxValue);
+}
+
+// --- Filtre compétences ---
+const STACKS = ['Python','PHP','Java','JavaScript','TypeScript','React','Vue.js','Angular','C#','C++','Go','Rust','Ruby','Swift','Kotlin','SQL','NoSQL','Docker','Kubernetes','AWS','Azure','GCP','DevOps'];
+const checkboxContainer = document.getElementById('filterCheckboxes');
+STACKS.forEach(stack=>{
+  const label = document.createElement('label');
+  const cb = document.createElement('input');
+  cb.type='checkbox';
+  cb.value=stack;
+  label.appendChild(cb);
+  label.appendChild(document.createTextNode(' '+stack));
+  checkboxContainer.appendChild(label);
+});
+
+// --- Filtre fonction ---
+function applyFilter(data){
+  const selected = Array.from(document.querySelectorAll('#filterCheckboxes input:checked')).map(cb=>cb.value);
+  const mode = document.getElementById('filterMode').value;
+  if(selected.length===0) return data; // rien de coché => tout
+  return data.filter(d=>{
+    const stacks = Array.isArray(d.stack)?d.stack:[];
+    if(mode==='OU') return selected.some(tok=>stacks.includes(tok));
+    return selected.every(tok=>stacks.includes(tok));
+  });
+}
+
+// --- Drag middle mouse ---
+function addMapDrag(map){
+  let isMiddleDragging=false, startX=0, startY=0, startPitch=map.getPitch(), startBearing=map.getBearing();
+  map.getCanvas().addEventListener('mousedown', e=>{
+    if(e.button===1){ isMiddleDragging=true; startX=e.clientX; startY=e.clientY; startPitch=map.getPitch(); startBearing=map.getBearing(); e.preventDefault(); }
+  });
+  window.addEventListener('mouseup', e=>{ if(e.button===1) isMiddleDragging=false; });
+  window.addEventListener('mousemove', e=>{
+    if(!isMiddleDragging) return;
+    const dx=e.clientX-startX, dy=e.clientY-startY;
+    map.setBearing(startBearing+dx*0.5);
+    map.setPitch(Math.min(60, Math.max(0, startPitch-dy*0.3)));
+  });
+}
+
+// --- Init ---
+async function main(){
+  const brutData = await fetch('adzuna_jobs_stacks.json').then(r=>r.json());
+
+  let data = applyFilter(brutData);
+
+  const map = new maplibregl.Map({
+    container:'map',
+    style: MAP_STYLES[currentStyle].url,
+    center:[2.3522,48.8566],
+    zoom:9,
+    pitch:50,
+    bearing:-20,
+    antialias:true
+  });
+
+  addMapDrag(map);
+
+  let currentRadius=1000, currentElevation=50, currentCoverage=0.8,
+      currentHexOpacity=0.8, currentBaseCoverage=1, currentBaseOpacity=0.5;
+
+  function createHexLayer(){
+    return new HexagonLayer({
+      id:`hex-layer-${currentStyle}-${currentScaleMode}-${currentHexOpacity}`,
+      data,
+      getPosition:d=>[d.longitude,d.latitude],
+      radius:currentRadius,
+      elevationScale:currentElevation,
+      extruded:true,
+      coverage:currentCoverage,
+      opacity:currentHexOpacity,
+      pickable:true,
+      getElevationValue: pts => SCALE_MODE[currentScaleMode].functionSpace(pts.length),
+      colorAggregation:'MEAN',
+      getColorValue: pts => SCALE_MODE[currentScaleMode].functionSpace(pts.length),
+      colorRange: interpolatePalette(MAP_STYLES[currentStyle].colors, paletteColorLen),
+      onSetColorDomain: domain => {
+        const [minVal,maxVal]=domain;
+        createLegend(interpolatePalette(MAP_STYLES[currentStyle].colors,paletteColorLen), minVal, maxVal, currentScaleMode);
+      }
+    });
+  }
+
+  function createHexBaseLayer(){
+    return new HexagonLayer({
+      id:`hex-base-layer-${currentStyle}-${currentScaleMode}-${currentBaseOpacity}`,
+      data,
+      getPosition:d=>[d.longitude,d.latitude],
+      radius:currentRadius,
+      extruded:false,
+      coverage:currentBaseCoverage,
+      opacity:currentBaseOpacity,
+      colorAggregation:'MEAN',
+      getColorValue: pts => SCALE_MODE[currentScaleMode].functionSpace(pts.length),
+      colorRange: interpolatePalette(MAP_STYLES[currentStyle].colors, paletteColorLen),
+      pickable:false,
+      onSetColorDomain: domain => {
+        const [minVal,maxVal]=domain;
+        createLegend(interpolatePalette(MAP_STYLES[currentStyle].colors,paletteColorLen), minVal, maxVal, currentScaleMode);
+      }
+    });
+  }
+
+  let overlayLayers = [createHexBaseLayer(), createHexLayer()];
+  const overlay = new MapboxOverlay({interleaved:true, layers:overlayLayers});
+  map.addControl(overlay);
+
+  function rebuildOverlayLayers(){
+    data = applyFilter(brutData);
+    overlayLayers=[];
+    if(document.getElementById('showBase').checked) overlayLayers.push(createHexBaseLayer());
+    if(document.getElementById('showExtrude').checked) overlayLayers.push(createHexLayer());
+    overlay.setProps({layers: overlayLayers});
+  }
+
+  // --- Bind sliders ---
+  function bindSlider(sliderId, valueId, onChange){
+    const s=document.getElementById(sliderId), v=document.getElementById(valueId);
+    s.addEventListener('input', e=>{
+      const val=e.target.value; v.textContent=val;
+      onChange(val);
+      rebuildOverlayLayers();
+    });
+  }
+
+  bindSlider('radiusSlider','radiusValue',v=>{currentRadius=parseInt(v,10);});
+  bindSlider('elevationSlider','elevationValue',v=>{currentElevation=parseInt(v,10);});
+  bindSlider('coverageSlider','coverageValue',v=>{currentCoverage=parseFloat(v);});
+  bindSlider('hexOpacitySlider','hexOpacityValue',v=>{currentHexOpacity=parseFloat(v);});
+  bindSlider('baseCoverageSlider','baseCoverageValue',v=>{currentBaseCoverage=parseFloat(v);});
+  bindSlider('baseOpacitySlider','baseOpacityValue',v=>{currentBaseOpacity=parseFloat(v);});
+
+  document.getElementById('showBase').addEventListener('change', rebuildOverlayLayers);
+  document.getElementById('showExtrude').addEventListener('change', rebuildOverlayLayers);
+  document.getElementById('scaleMode').addEventListener('change', e=>{currentScaleMode=e.target.value; rebuildOverlayLayers();});
+  document.getElementById('styleMode').addEventListener('change', e=>{currentStyle=e.target.value; map.setStyle(MAP_STYLES[currentStyle].url); rebuildOverlayLayers();});
+
+  // Toggle contrôles
+  document.getElementById('controlsHeader').addEventListener('click', ()=>{ 
+    const content=document.getElementById('controlsContent');
+    content.style.display = (content.style.display==='none')?'block':'none';
+  });
+
+  // Toggle filtre
+  document.getElementById('filterHeader').addEventListener('click', ()=>{ 
+    const content=document.getElementById('filterContent');
+    content.style.display = (content.style.display==='none')?'block':'none';
+  });
+
+  // Rebuild overlay quand filtre change
+  document.querySelectorAll('#filterCheckboxes input, #filterMode').forEach(el=>{
+    el.addEventListener('change', rebuildOverlayLayers);
+  });
+}
+
+main();
+</script>
 </body>
 </html>
