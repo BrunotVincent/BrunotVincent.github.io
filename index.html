@@ -7,14 +7,83 @@
 <link href="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.css" rel="stylesheet">
 <script src="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.js"></script>
 <script src="https://unpkg.com/deck.gl@9.0.33/dist.min.js"></script>
+
+
+
 <style>
 html, body, #map { margin:0; padding:0; width:100%; height:100%; }
-#controlsContainer { position:absolute; top:10px; left:10px; z-index:1000; }
-#controlsHeader { background:rgba(255,255,255,0.8); padding:6px 10px; border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,0.2); font-family:sans-serif; cursor:pointer; user-select:none; }
+#controlsContainer { position:absolute; top:58px; left:10px; z-index:1000; }
+#controlsHeader { width: 20px;height: 28px;background:rgba(255,255,255,0.8); padding:6px 10px; border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,0.2); font-family:sans-serif; cursor:pointer; user-select:none; }
 #controlsContent { display:none; background:rgba(255,255,255,0.8); padding:8px; border-radius:6px; margin-top:4px; max-height:80vh; overflow-y:auto; box-shadow:0 2px 6px rgba(0,0,0,0.2); }
 #controlsContent label { display:block; margin-top:5px; }
-#layerToggle { position:absolute; top:10px; right:10px; z-index:1000; background:rgba(255,255,255,0.8); padding:8px; border-radius:6px; font-family:sans-serif; box-shadow:0 2px 6px rgba(0,0,0,0.2); }
+#layerToggle {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  flex-direction: column;  /* colonne verticale */
+  gap: 6px;                /* espace entre les boutons */
+  z-index: 1000;
+}
+
+#layerToggle button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;   /* taille uniforme */
+  height: 40px;
+  border-radius: 6px;
+  border: 1px solid rgba(0,0,0,0.5);
+  background: rgba(255,255,255,0.8);
+  cursor: pointer;
+  padding: 0;
+}
+#themeButton{
+  border-radius: 6px;
+  margin: 0;
+  border: 1px solid rgba(0,0,0,0.5);
+  cursor:pointer;
+  width: 40px; 
+  width: 40px; 
+}
+#layerToggle button img,
+#layerToggle button svg {
+  width: 24px;
+  height: 24px;
+}
 #layerToggle label { display:block; }
+
+.toggle-button {
+  position: relative;
+  width: 35px;
+  height: 35px;
+  background: rgba(255,255,255,0.8);
+  border: 1px solid rgba(0,0,0,0.3);
+  border-radius: 6px;
+  margin: 2px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+
+.toggle-button img {
+  width: 24px;
+  height: 24px;
+}
+
+.toggle-button:not(.active)::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 70%;
+  height: 2px;
+  background: red;  /* barrure diagonale quand inactif */
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
 
 /* --- légende --- */
 .legend {
@@ -51,8 +120,13 @@ html, body, #map { margin:0; padding:0; width:100%; height:100%; }
 #filterContent { padding: 8px; display: block; max-height: 30rem; overflow-y: auto; }
 #filterContent label { display: block; margin: 4px; }
 #filterCheckboxes { max-height: 19.5rem; overflow-y: auto; border:1px solid #ccc; padding:4px; border-radius:4px; background:#fff; }
+#filterDateRange input {  margin-left: auto;margin-right: auto;}
+
 #pageTitle {
+  flex-shrink: 0;
   position: absolute;
+  width: 100%;
+  text-align: center;
   top: 10px;
   left: 50%;
   transform: translateX(-50%);
@@ -60,7 +134,7 @@ html, body, #map { margin:0; padding:0; width:100%; height:100%; }
   padding: 6px 12px;
   border-radius: 6px;
   font-family: sans-serif;
-  font-size: 28px;
+  font-size:  clamp(22px, 5vw, 32px);
   font-weight: bold;
   color:#4676fccc ;
   filter: 
@@ -71,86 +145,158 @@ html, body, #map { margin:0; padding:0; width:100%; height:100%; }
 
   pointer-events: none; /* ne bloque pas la souris */
 }
+#appContainer {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+}
+#mapContainer {
+  position: relative;
+  flex: 1 1 auto;
+  display: flex;
+  width: 100%;
+  height: 100%;
+}
+
+@media (max-width: 600px) {
+  #pageTitle {
+    position: relative;   /* passe au flux normal */
+    top: auto;
+    left: auto;
+    transform: none;
+    text-align: center;
+    width: 100%;
+    font-size: 5vw;       /* plus flexible */
+    padding: 8px 0;
+    margin-bottom: 4px;
+    background: rgba(255,255,255,0.8);
+  }
+  .legend{
+    left: 10px;
+    right: 10px;      /* ajoute la marge droite */
+    width: auto;       /* width automatique entre left et right */
+  }
+  #filterContainer{
+    bottom: calc(35px + 40px);
+  }
+  .maplibregl-ctrl-bottom-right{
+    display: none;
+  }
+  #controlsContainer{
+
+    top:10px
+  }
+}
+@media(max-width:375px){
+  #layerToggle{
+    flex-direction:row-reverse;
+  }
+
+};
+
 
 </style>
 </head>
 <body>
-<div id="pageTitle">Carte Stacks Dev France</div>
+  <div id="appContainer">
+    <div id="pageTitle">Carte Stacks Dev France</div>
+    <div id="mapContainer">
+      <div id="map"></div>     
 
-<div id="map"></div>
+      <!-- Contrôles -->
+      <div id="controlsContainer">
+        <div id="controlsHeader">
+          <img width="100%" height="100%" src="src/icon/Setting.svg" alt="Setting">
+        </div>
+        <div id="controlsContent">
+          <label>Rayon hexagones (m):
+            <input type="range" id="radiusSlider" min="500" max="5000" step="50" value="1000">
+            <span id="radiusValue">1000</span>
+          </label>
+          <label>Hauteur 3D (elevationScale):
+            <input type="range" id="elevationSlider" min="10" max="100" step="5" value="50">
+            <span id="elevationValue">50</span>
+          </label>
+          <label>Coverage extrudé:
+            <input type="range" id="coverageSlider" min="0.1" max="1" step="0.05" value="0.8">
+            <span id="coverageValue">0.8</span>
+          </label>
+          <label>Opacité extrudé:
+            <input type="range" id="hexOpacitySlider" min="0.1" max="1" step="0.05" value="0.8">
+            <span id="hexOpacityValue">0.8</span>
+          </label>
+          <label>Coverage base:
+            <input type="range" id="baseCoverageSlider" min="0.1" max="1" step="0.05" value="1">
+            <span id="baseCoverageValue">1</span>
+          </label>
+          <label>Opacité base:
+            <input type="range" id="baseOpacitySlider" min="0.1" max="1" step="0.05" value="0.5">
+            <span id="baseOpacityValue">0.5</span>
+          </label>
+          <label>Échelle couleur:
+            <select id="scaleMode">
+              <option value="linear">Linéraire</option>
+              <option value="log" selected>Logarithmique</option>
+            </select>
+          </label>
+          <label>Style carte:
+            <select id="styleMode">
+              <option value="dark" selected>Dark</option>
+              <option value="light">Light</option>
+            </select>
+          </label>
+        </div>
+      </div>
+  
 
-<!-- Contrôles -->
-<div id="controlsContainer">
-  <div id="controlsHeader">⚙ Paramètres</div>
-  <div id="controlsContent">
-    <label>Rayon hexagones (m):
-      <input type="range" id="radiusSlider" min="500" max="5000" step="50" value="1000">
-      <span id="radiusValue">1000</span>
-    </label>
-    <label>Hauteur 3D (elevationScale):
-      <input type="range" id="elevationSlider" min="10" max="100" step="5" value="50">
-      <span id="elevationValue">50</span>
-    </label>
-    <label>Coverage extrudé:
-      <input type="range" id="coverageSlider" min="0.1" max="1" step="0.05" value="0.8">
-      <span id="coverageValue">0.8</span>
-    </label>
-    <label>Opacité extrudé:
-      <input type="range" id="hexOpacitySlider" min="0.1" max="1" step="0.05" value="0.8">
-      <span id="hexOpacityValue">0.8</span>
-    </label>
-    <label>Coverage base:
-      <input type="range" id="baseCoverageSlider" min="0.1" max="1" step="0.05" value="1">
-      <span id="baseCoverageValue">1</span>
-    </label>
-    <label>Opacité base:
-      <input type="range" id="baseOpacitySlider" min="0.1" max="1" step="0.05" value="0.5">
-      <span id="baseOpacityValue">0.5</span>
-    </label>
-    <label>Échelle couleur:
-      <select id="scaleMode">
-        <option value="linear">Linéraire</option>
-        <option value="log" selected>Logarithmique</option>
-      </select>
-    </label>
-    <label>Style carte:
-      <select id="styleMode">
-        <option value="dark" selected>Dark</option>
-        <option value="light">Light</option>
-      </select>
-    </label>
+  <!-- Toggle layers -->
+  <div id="layerToggle">
+    <button id="themeButton" >
+      <svg id="themeIcon" width="100%" height="100%" viewBox="0 0 24 24" fill="orange"></svg>
+    </button>
+    <button id="toggleBase" class="toggle-button active" title="Afficher la base">
+      <img width="100%" height="100%" src="src/icon/Base.svg" alt="Base">
+    </button>
+    <button id="toggleExtrude" class="toggle-button active" title="Afficher la base">
+      <img width="100%" height="100%" src="src/icon/Extrude.svg" alt="Base">
+    </button>
+        
   </div>
-</div>
 
-<!-- Toggle layers -->
-<div id="layerToggle">
-  <label><input type="checkbox" id="showBase" checked> Afficher la base</label>
-  <label><input type="checkbox" id="showExtrude" checked> Afficher extrudé</label>
-</div>
-
-<!-- Légende -->
-<div class="legend" id="legendContainer">
-  <div id="legendValues">
-    <span id="minValue">0</span>
-    <span id="midValue">0</span>
-    <span id="maxValue">0</span>
+  <!-- Légende -->
+  <div class="legend" id="legendContainer">
+    <div id="legendValues">
+      <span id="minValue">0</span>
+      <span id="midValue">0</span>
+      <span id="maxValue">0</span>
+    </div>
+    <div class="legendColorBar" id="legendBar"></div>
   </div>
-  <div class="legendColorBar" id="legendBar"></div>
-</div>
 
-<!-- Filtre compétences -->
-<div id="filterContainer">
-  <div id="filterHeader">Filtres stacks ▾</div>
+  <!-- Filtre compétences -->
+  <div id="filterContainer">
+  <div id="filterHeader">Filtres ▾</div>
   <div id="filterContent">
-    <label>Mode de filtre:
-      <select id="filterMode">
-        <option value="OU">OU</option>
-        <option value="ET">ET</option>
-      </select>
+    <label id="filterDateRange">Filtre par date :
+      <input type="date" id="minDate">
+      <input type="date" id="maxDate">
     </label>
-    <div id="filterCheckboxes"></div>
+    
+      <label>Mode de filtre:
+        <select id="filterMode">
+          <option value="OU">OU</option>
+          <option value="ET">ET</option>
+        </select>
+      </label>
+      <div id="filterCheckboxes"></div>
+    </div>
   </div>
 </div>
+  </div>
+
+
+
 
 <script type="module">
 const {HexagonLayer, MapboxOverlay} = deck;
@@ -165,6 +311,22 @@ const MAP_STYLES = {
 const paletteColorLen = 50;
 let currentStyle='dark', currentScaleMode='log';
 
+// --- svg buton switch mode ---
+const LIGHT_ICON_PATH  =  '<path fill="#fff700" d="M12 16q-1.671 0-2.835-1.164Q8 13.67 8 12t1.165-2.835T12 8t2.836 1.165T16 12t-1.164 2.836T12 16m-7-3.5H1.5v-1H5zm17.5 0H19v-1h3.5zM11.5 5V1.5h1V5zm0 17.5V19h1v3.5zM6.746 7.404l-2.16-2.098l.695-.745l2.111 2.135zM18.72 19.439l-2.117-2.141l.652-.702l2.16 2.098zM16.596 6.745l2.098-2.16l.745.695l-2.135 2.111zM4.562 18.72l2.14-2.117l.664.652l-2.08 2.179z"/>'
+const DARK_ICON_PATH   = '<path fill="#fff700" d="M12.058 20q-3.333 0-5.667-2.334T4.058 12q0-2.47 1.413-4.535q1.414-2.067 4.01-2.973q.306-.107.536-.056t.381.199t.192.38q.04.233-.063.489q-.194.477-.282.971T10.158 7.5q0 2.673 1.863 4.537q1.864 1.863 4.537 1.863q.698 0 1.277-.148q.58-.148.988-.24q.218-.04.399.01t.292.176q.115.125.156.308t-.047.417q-.715 2.45-2.803 4.013T12.058 20"/>'
+
+function updateStlyeSwitchMode(){
+  const themeButton = document.getElementById('themeButton');
+  const themeIcon = document.getElementById('themeIcon');
+  themeIcon.innerHTML = currentStyle === 'dark' ? DARK_ICON_PATH : LIGHT_ICON_PATH;
+  themeButton.style.setProperty('background-color', currentStyle === 'dark' ? '#3E5DB5' : '#3BB1CE', 'important')
+  const COLOR = currentStyle === 'dark' ? '#fff700' : '#FFD68A'
+  themeIcon.querySelector('path').setAttribute('fill', COLOR);
+
+
+}
+
+updateStlyeSwitchMode()
 // --- Scale mode ---
 const SCALE_MODE = {
   linear: { functionSpace: count => count>0?count:0, linearizeSpace: y => Math.round(y) },
@@ -233,15 +395,37 @@ STACKS.forEach(stack=>{
   checkboxContainer.appendChild(label);
 });
 
+
 // --- Filtre fonction ---
+// function applyFilter(data){
+//   const selected = Array.from(document.querySelectorAll('#filterCheckboxes input:checked')).map(cb=>cb.value);
+//   const mode = document.getElementById('filterMode').value;
+//   if(selected.length===0) return data; // rien de coché => tout
+//   return data.filter(d=>{
+//     const stacks = Array.isArray(d.stack)?d.stack:[];
+//     if(mode==='OU') return selected.some(tok=>stacks.includes(tok));
+//     return selected.every(tok=>stacks.includes(tok));
+//   });
+// }
 function applyFilter(data){
   const selected = Array.from(document.querySelectorAll('#filterCheckboxes input:checked')).map(cb=>cb.value);
   const mode = document.getElementById('filterMode').value;
-  if(selected.length===0) return data; // rien de coché => tout
+  const minDate = new Date(document.getElementById('minDate').value);
+  const maxDate = new Date(document.getElementById('maxDate').value);
+
   return data.filter(d=>{
-    const stacks = Array.isArray(d.stack)?d.stack:[];
-    if(mode==='OU') return selected.some(tok=>stacks.includes(tok));
-    return selected.every(tok=>stacks.includes(tok));
+    const stacks = Array.isArray(d.stacks) ? d.stacks : [];
+
+    // --- Filtre stacks ---
+    const stackOk = selected.length === 0 ? true :
+                    mode==='OU' ? selected.some(tok=>stacks.includes(tok)) :
+                                  selected.every(tok=>stacks.includes(tok));
+
+    // --- Filtre dates ---
+    const created = new Date(d.created);
+    const dateOk = created >= minDate && created <= maxDate;
+
+    return stackOk && dateOk;
   });
 }
 
@@ -262,7 +446,18 @@ function addMapDrag(map){
 
 // --- Init ---
 async function main(){
-  const brutData = await fetch('jobs_stacks.json').then(r=>r.json());
+  const brutData1 = await fetch('src/data/jobs_stacks.json').then(r=>r.json());
+  const brutData2 = await fetch('src/data/offres.json').then(r=>r.json());
+  const brutData = [...brutData1,...brutData2];
+
+  const dates = brutData.map(d => new Date(d.created)).filter(d => !isNaN(d));
+  const minDate = new Date(Math.min(...dates));
+  const maxDate = new Date(Math.max(...dates));
+
+  document.getElementById('minDate').valueAsDate = minDate;
+  document.getElementById('maxDate').valueAsDate = maxDate;
+
+
 
   let data = applyFilter(brutData);
 
@@ -327,13 +522,27 @@ async function main(){
   const overlay = new MapboxOverlay({interleaved:true, layers:overlayLayers});
   map.addControl(overlay);
 
-  function rebuildOverlayLayers(){
-    data = applyFilter(brutData);
-    overlayLayers=[];
-    if(document.getElementById('showBase').checked) overlayLayers.push(createHexBaseLayer());
-    if(document.getElementById('showExtrude').checked) overlayLayers.push(createHexLayer());
-    overlay.setProps({layers: overlayLayers});
+  // function rebuildOverlayLayers(){
+  //   data = applyFilter(brutData);
+  //   overlayLayers=[];
+  //   if(document.getElementById('showBase').checked) overlayLayers.push(createHexBaseLayer());
+  //   if(document.getElementById('showExtrude').checked) overlayLayers.push(createHexLayer());
+  //   overlay.setProps({layers: overlayLayers});
+  // }
+  function rebuildOverlayLayers() {
+  data = applyFilter(brutData);
+  overlayLayers = [];
+
+  // Vérifie si le bouton a la classe 'active'
+  if (document.getElementById('toggleBase').classList.contains('active')) {
+    overlayLayers.push(createHexBaseLayer());
   }
+  if (document.getElementById('toggleExtrude').classList.contains('active')) {
+    overlayLayers.push(createHexLayer());
+  }
+
+  overlay.setProps({ layers: overlayLayers });
+}
 
   // --- Bind sliders ---
   function bindSlider(sliderId, valueId, onChange){
@@ -352,11 +561,29 @@ async function main(){
   bindSlider('baseCoverageSlider','baseCoverageValue',v=>{currentBaseCoverage=parseFloat(v);});
   bindSlider('baseOpacitySlider','baseOpacityValue',v=>{currentBaseOpacity=parseFloat(v);});
 
-  document.getElementById('showBase').addEventListener('change', rebuildOverlayLayers);
-  document.getElementById('showExtrude').addEventListener('change', rebuildOverlayLayers);
+  // --- Affichage Base / Extrude
+const toggleBase = document.getElementById('toggleBase');
+const toggleExtrude = document.getElementById('toggleExtrude');
+
+[toggleBase, toggleExtrude].forEach(btn => {
+  btn.addEventListener('click', () => {
+    btn.classList.toggle('active'); // toggle état actif/inactif
+    rebuildOverlayLayers();         // fonction existante pour la carte
+  });
+});
+  
   document.getElementById('scaleMode').addEventListener('change', e=>{currentScaleMode=e.target.value; rebuildOverlayLayers();});
   document.getElementById('styleMode').addEventListener('change', e=>{currentStyle=e.target.value; map.setStyle(MAP_STYLES[currentStyle].url); rebuildOverlayLayers();updateTextColorForStyle(currentStyle);});
+  document.getElementById('themeIcon').addEventListener('click', () => {
+    currentStyle = currentStyle === 'dark' ? 'light' : 'dark';
 
+    // Change l'icône
+    // themeIcon.innerHTML = currentStyle === 'dark' ? DARK_ICON_PATH : LIGHT_ICON_PATH;
+    updateStlyeSwitchMode()
+    map.setStyle(MAP_STYLES[currentStyle].url);
+    rebuildOverlayLayers();
+    updateTextColorForStyle(currentStyle)
+  });
   // Toggle contrôles
   document.getElementById('controlsHeader').addEventListener('click', ()=>{ 
     const content=document.getElementById('controlsContent');
@@ -373,6 +600,10 @@ async function main(){
   document.querySelectorAll('#filterCheckboxes input, #filterMode').forEach(el=>{
     el.addEventListener('change', rebuildOverlayLayers);
   });
+  // Reduild filtre date range 
+  document.getElementById('minDate').addEventListener('change', rebuildOverlayLayers);
+  document.getElementById('maxDate').addEventListener('change', rebuildOverlayLayers);
+
 }
 
 main();

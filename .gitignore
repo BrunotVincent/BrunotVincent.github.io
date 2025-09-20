@@ -3,3 +3,5 @@
 .venv
 *.db
 *.ipynb
+/qdrant_local/
+competences.csv
