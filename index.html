@@ -7,7 +7,7 @@
 <link href="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.css" rel="stylesheet">
 <script src="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.js"></script>
 <script src="https://unpkg.com/deck.gl@9.0.33/dist.min.js"></script>
-
+<script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js"></script>
 
 
 <style>
@@ -158,7 +158,19 @@ html, body, #map { margin:0; padding:0; width:100%; height:100%; }
   width: 100%;
   height: 100%;
 }
+#filterGeo{
+    display:flex;
+    flex-direction: column;
+    row-gap:6px;
+    margin-left: 3px;
+    margin-top: 12px;
+    padding: 0;
 
+}
+#filterGeo input{
+    width: 40px;
+    border-radius: 3px;
+}
 @media (max-width: 600px) {
   #pageTitle {
     position: relative;   /* passe au flux normal */
@@ -261,6 +273,13 @@ html, body, #map { margin:0; padding:0; width:100%; height:100%; }
     <button id="toggleExtrude" class="toggle-button active" title="Afficher la base">
       <img width="100%" height="100%" src="src/icon/Extrude.svg" alt="Base">
     </button>
+
+    <!--Filtre Géo-->
+    <div id="filterGeo">
+        <button id="active_circle"></button>
+        <button id="edit_circle"></button>
+        <input type="number" min="1" id="cRadiusKm" value="20">
+    </div>
         
   </div>
 
@@ -276,24 +295,27 @@ html, body, #map { margin:0; padding:0; width:100%; height:100%; }
 
   <!-- Filtre compétences -->
   <div id="filterContainer">
-  <div id="filterHeader">Filtres ▾</div>
-  <div id="filterContent">
-    <label id="filterDateRange">Filtre par date :
-      <input type="date" id="minDate">
-      <input type="date" id="maxDate">
-    </label>
-    
-      <label>Mode de filtre:
-        <select id="filterMode">
-          <option value="OU">OU</option>
-          <option value="ET">ET</option>
-        </select>
-      </label>
-      <div id="filterCheckboxes"></div>
+    <div id="filterHeader">Filtres ▾</div>
+    <div id="filterContent">
+        <label id="filterDateRange">Filtre par date :
+        <input type="date" id="minDate">
+        <input type="date" id="maxDate">
+        </label>
+        
+        <label>Mode de filtre:
+            <select id="filterMode">
+            <option value="OU">OU</option>
+            <option value="ET">ET</option>
+            </select>
+        </label>
+        <div id="filterCheckboxes"></div>
     </div>
   </div>
+
+  <!--Géo filtre -->
+
 </div>
-  </div>
+</div>
 
 
 
@@ -314,6 +336,14 @@ let currentStyle='dark', currentScaleMode='log';
 // --- svg buton switch mode ---
 const LIGHT_ICON_PATH  =  '<path fill="#fff700" d="M12 16q-1.671 0-2.835-1.164Q8 13.67 8 12t1.165-2.835T12 8t2.836 1.165T16 12t-1.164 2.836T12 16m-7-3.5H1.5v-1H5zm17.5 0H19v-1h3.5zM11.5 5V1.5h1V5zm0 17.5V19h1v3.5zM6.746 7.404l-2.16-2.098l.695-.745l2.111 2.135zM18.72 19.439l-2.117-2.141l.652-.702l2.16 2.098zM16.596 6.745l2.098-2.16l.745.695l-2.135 2.111zM4.562 18.72l2.14-2.117l.664.652l-2.08 2.179z"/>'
 const DARK_ICON_PATH   = '<path fill="#fff700" d="M12.058 20q-3.333 0-5.667-2.334T4.058 12q0-2.47 1.413-4.535q1.414-2.067 4.01-2.973q.306-.107.536-.056t.381.199t.192.38q.04.233-.063.489q-.194.477-.282.971T10.158 7.5q0 2.673 1.863 4.537q1.864 1.863 4.537 1.863q.698 0 1.277-.148q.58-.148.988-.24q.218-.04.399.01t.292.176q.115.125.156.308t-.047.417q-.715 2.45-2.803 4.013T12.058 20"/>'
+
+
+// --- Variables globales pour le cercle ---
+window.circleCenter = null;        // [lng, lat]
+window.circleRadiusKm = 25;
+window.circleGeoJson = null;       // GeoJSON du cercle
+window.editMode = false;           // État édition
+window.circleVisible = false;      // État affichage cercle
 
 function updateStlyeSwitchMode(){
   const themeButton = document.getElementById('themeButton');
@@ -395,39 +425,6 @@ STACKS.forEach(stack=>{
   checkboxContainer.appendChild(label);
 });
 
-
-// --- Filtre fonction ---
-// function applyFilter(data){
-//   const selected = Array.from(document.querySelectorAll('#filterCheckboxes input:checked')).map(cb=>cb.value);
-//   const mode = document.getElementById('filterMode').value;
-//   if(selected.length===0) return data; // rien de coché => tout
-//   return data.filter(d=>{
-//     const stacks = Array.isArray(d.stack)?d.stack:[];
-//     if(mode==='OU') return selected.some(tok=>stacks.includes(tok));
-//     return selected.every(tok=>stacks.includes(tok));
-//   });
-// }
-function applyFilter(data){
-  const selected = Array.from(document.querySelectorAll('#filterCheckboxes input:checked')).map(cb=>cb.value);
-  const mode = document.getElementById('filterMode').value;
-  const minDate = new Date(document.getElementById('minDate').value);
-  const maxDate = new Date(document.getElementById('maxDate').value);
-
-  return data.filter(d=>{
-    const stacks = Array.isArray(d.stacks) ? d.stacks : [];
-
-    // --- Filtre stacks ---
-    const stackOk = selected.length === 0 ? true :
-                    mode==='OU' ? selected.some(tok=>stacks.includes(tok)) :
-                                  selected.every(tok=>stacks.includes(tok));
-
-    // --- Filtre dates ---
-    const created = new Date(d.created);
-    const dateOk = created >= minDate && created <= maxDate;
-
-    return stackOk && dateOk;
-  });
-}
 
 // --- Drag middle mouse ---
 function addMapDrag(map){
@@ -521,14 +518,6 @@ async function main(){
   let overlayLayers = [createHexBaseLayer(), createHexLayer()];
   const overlay = new MapboxOverlay({interleaved:true, layers:overlayLayers});
   map.addControl(overlay);
-
-  // function rebuildOverlayLayers(){
-  //   data = applyFilter(brutData);
-  //   overlayLayers=[];
-  //   if(document.getElementById('showBase').checked) overlayLayers.push(createHexBaseLayer());
-  //   if(document.getElementById('showExtrude').checked) overlayLayers.push(createHexLayer());
-  //   overlay.setProps({layers: overlayLayers});
-  // }
   function rebuildOverlayLayers() {
   data = applyFilter(brutData);
   overlayLayers = [];
@@ -561,6 +550,115 @@ async function main(){
   bindSlider('baseCoverageSlider','baseCoverageValue',v=>{currentBaseCoverage=parseFloat(v);});
   bindSlider('baseOpacitySlider','baseOpacityValue',v=>{currentBaseOpacity=parseFloat(v);});
 
+
+// --- Filtre fonction avec filtre géographique actif ---
+function applyFilter(data){
+  const selected = Array.from(document.querySelectorAll('#filterCheckboxes input:checked')).map(cb=>cb.value);
+  const mode = document.getElementById('filterMode').value;
+  const minDate = new Date(document.getElementById('minDate').value);
+  const maxDate = new Date(document.getElementById('maxDate').value);
+
+  // Récupère correctement les valeurs globales
+  const circleActive = window.circleVisible;   // Bouton "active_circle"
+  const center = window.circleCenter;
+  const radiusKm = parseFloat(document.getElementById('cRadiusKm')?.value) || 0;
+
+  // Crée le polygone une seule fois si nécessaire
+  let circlePolygon = null;
+  if(circleActive && center && radiusKm > 0){
+    circlePolygon = turf.circle(center, radiusKm, {steps: 64, units: 'kilometers'});
+  }
+
+  return data.filter(d=>{
+    const stacks = Array.isArray(d.stacks) ? d.stacks : [];
+
+    // --- Filtre stacks ---
+    const stackOk = selected.length === 0 ? true :
+                    mode==='OU' ? selected.some(tok=>stacks.includes(tok)) :
+                                  selected.every(tok=>stacks.includes(tok));
+
+    // --- Filtre dates ---
+    const created = new Date(d.created);
+    const dateOk = created >= minDate && created <= maxDate;
+
+    // --- Filtre géographique ---
+    let geoOk = true;
+    if(circlePolygon && d.longitude != null && d.latitude != null){
+      geoOk = turf.booleanPointInPolygon([d.longitude, d.latitude], circlePolygon);
+    }
+
+    return stackOk && dateOk && geoOk;
+  });
+}
+
+// --- Fonction pour dessiner / mettre à jour le cercle ---
+function drawTurfCircle(center, radiusKm) {
+  if (!center) return;
+
+  // Crée un cercle Turf
+  circleGeoJson = turf.circle(center, radiusKm, { steps: 64, units: 'kilometers' });
+
+  if (map.getSource('circleSource')) {
+    map.getSource('circleSource').setData(circleGeoJson);
+    map.setLayoutProperty('circleLayer', 'visibility', circleVisible ? 'visible' : 'none');
+  } else {
+    map.addSource('circleSource', { type: 'geojson', data: circleGeoJson });
+    map.addLayer({
+      id: 'circleLayer',
+      type: 'fill',
+      source: 'circleSource',
+      paint: {
+        'fill-color': 'rgba(255,0,0,0.3)',
+        'fill-outline-color': 'red'
+      },
+      layout: {
+        visibility: circleVisible ? 'visible' : 'none'
+      }
+    });
+  }
+}
+
+// --- Bouton Edit Circle ---
+const editButton = document.getElementById('edit_circle');
+editButton.textContent = 'Edit Circle';
+editButton.addEventListener('click', () => {
+  editMode = !editMode;
+  if (!circleVisible){
+   document.getElementById('active_circle').click();
+  }
+  editButton.style.backgroundColor = editMode ? '#3BB1CE' : '';
+});
+
+// --- Bouton Active Circle ---
+const activeButton = document.getElementById('active_circle');
+activeButton.textContent = 'Show Circle';
+activeButton.addEventListener('click', () => {
+  circleVisible = !circleVisible;
+  activeButton.style.backgroundColor = circleVisible ? '#3BB1CE' : '';
+  if (map.getLayer('circleLayer')) {
+    map.setLayoutProperty('circleLayer', 'visibility', circleVisible ? 'visible' : 'none');
+  }
+  rebuildOverlayLayers()
+});
+
+// --- Click sur la map pour définir le centre ---
+map.on('click', (e) => {
+  if (!editMode) return;
+  circleCenter = [e.lngLat.lng, e.lngLat.lat];
+  drawTurfCircle(circleCenter, circleRadiusKm);
+   
+  rebuildOverlayLayers();
+});
+
+// --- Mise à jour du rayon ---
+const radiusInput = document.getElementById('cRadiusKm');
+radiusInput.addEventListener('input', e => {
+  circleRadiusKm = parseFloat(e.target.value);
+  drawTurfCircle(circleCenter, circleRadiusKm);
+
+  rebuildOverlayLayers()
+});
+
   // --- Affichage Base / Extrude
 const toggleBase = document.getElementById('toggleBase');
 const toggleExtrude = document.getElementById('toggleExtrude');
@@ -568,9 +666,11 @@ const toggleExtrude = document.getElementById('toggleExtrude');
 [toggleBase, toggleExtrude].forEach(btn => {
   btn.addEventListener('click', () => {
     btn.classList.toggle('active'); // toggle état actif/inactif
+     
     rebuildOverlayLayers();         // fonction existante pour la carte
   });
 });
+
   
   document.getElementById('scaleMode').addEventListener('change', e=>{currentScaleMode=e.target.value; rebuildOverlayLayers();});
   document.getElementById('styleMode').addEventListener('change', e=>{currentStyle=e.target.value; map.setStyle(MAP_STYLES[currentStyle].url); rebuildOverlayLayers();updateTextColorForStyle(currentStyle);});
