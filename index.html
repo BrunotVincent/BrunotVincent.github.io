@@ -9,28 +9,133 @@
 <script src="https://unpkg.com/deck.gl@9.0.33/dist.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js"></script>
 
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+
 
 <style>
-html, body, #map { margin:0; padding:0; width:100%; height:100%; }
+html, body {
+  margin:0;
+  padding:0;
+  width:100%;
+  height:100%;
+  overflow-x:hidden;
+}
+
+/* Conteneur global */
+#App {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh; /* pour que le body scroll si nécessaire */
+}
+
+/* Conteneur map + contrôles */
+#appContainer {
+  height: 100vh;
+  flex: 1 0 auto;       /* prend tout l’espace disponible */
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* Conteneur map */
+#mapContainer {
+  flex: 1 1 auto;       /* prend tout l’espace restant dans appContainer */
+  display: flex;
+  position: relative;
+}
+
+/* Map */
+#map {
+  flex: 1 1 auto;
+}
+
+/* Page title */
+#pageTitle {
+  flex-shrink: 0;
+  position: absolute;
+  width: 100%;
+  text-align: center;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-family: sans-serif;
+  font-size: clamp(22px, 5vw, 32px);
+  font-weight: bold;
+  color:#4676fccc;
+  filter: 
+    drop-shadow(-1px -1px 2px rgba(100,100,100,0.3))
+    drop-shadow(1px -1px 2px rgba(100,100,100,0.3))
+    drop-shadow(-1px 1px 2px rgba(100,100,100,0.3))
+    drop-shadow(1px 1px 2px rgba(100,100,100,0.3));
+  pointer-events: none;
+}
+
+/* Stats calendar */
+#statsCalendar{
+  height: 500px;
+  width: fit-content;
+  background:#f0f0f0; /* couleur d’exemple */
+}
+#statsCalendar svg { font-size: 10px; display: block;}
+#calendar-container {
+      width: 100%;        /* largeur visible du calendrier */
+      height: 300px;       /* hauteur visible du calendrier */
+      overflow: auto;      /* scroll automatique si contenu dépasse */
+      border: 1px solid #ccc; 
+    }
+
+
+    .day-cell {
+      stroke: #ccc;
+      stroke-width: 0.5px;
+    }
+
+    .month-label { font-weight: bold; }
+    .day-label { text-anchor: end; alignment-baseline: middle; }
+
+/* Contrôles */
 #controlsContainer { position:absolute; top:58px; left:10px; z-index:1000; }
-#controlsHeader { width: 20px;height: 28px;background:rgba(255,255,255,0.8); padding:6px 10px; border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,0.2); font-family:sans-serif; cursor:pointer; user-select:none; }
-#controlsContent { display:none; background:rgba(255,255,255,0.8); padding:8px; border-radius:6px; margin-top:4px; max-height:80vh; overflow-y:auto; box-shadow:0 2px 6px rgba(0,0,0,0.2); }
+#controlsHeader {
+  width: 20px;
+  height: 28px;
+  background:rgba(255,255,255,0.8);
+  padding:6px 10px;
+  border-radius:6px;
+  box-shadow:0 2px 6px rgba(0,0,0,0.2);
+  font-family:sans-serif;
+  cursor:pointer;
+  user-select:none;
+}
+#controlsContent {
+  display:none;
+  background:rgba(255,255,255,0.8);
+  padding:8px;
+  border-radius:6px;
+  margin-top:4px;
+  max-height:80vh;
+  overflow-y:auto;
+  box-shadow:0 2px 6px rgba(0,0,0,0.2);
+}
 #controlsContent label { display:block; margin-top:5px; }
+
+/* Toggle layers */
 #layerToggle {
   position: absolute;
   top: 10px;
   right: 10px;
   display: flex;
-  flex-direction: column;  /* colonne verticale */
-  gap: 6px;                /* espace entre les boutons */
+  flex-direction: column;
+  gap: 6px;
   z-index: 1000;
 }
-
 #layerToggle button {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;   /* taille uniforme */
+  width: 40px;
   height: 40px;
   border-radius: 6px;
   border: 1px solid rgba(0,0,0,0.5);
@@ -44,15 +149,12 @@ html, body, #map { margin:0; padding:0; width:100%; height:100%; }
   border: 1px solid rgba(0,0,0,0.5);
   cursor:pointer;
   width: 40px; 
-  width: 40px; 
 }
 #layerToggle button img,
-#layerToggle button svg {
-  width: 24px;
-  height: 24px;
-}
+#layerToggle button svg { width: 24px; height: 24px; }
 #layerToggle label { display:block; }
 
+/* Toggle button style */
 .toggle-button {
   position: relative;
   width: 35px;
@@ -67,12 +169,7 @@ html, body, #map { margin:0; padding:0; width:100%; height:100%; }
   justify-content: center;
   transition: background 0.2s;
 }
-
-.toggle-button img {
-  width: 24px;
-  height: 24px;
-}
-
+.toggle-button img { width: 24px; height: 24px; }
 .toggle-button:not(.active)::after {
   content: '';
   position: absolute;
@@ -80,12 +177,11 @@ html, body, #map { margin:0; padding:0; width:100%; height:100%; }
   left: 50%;
   width: 70%;
   height: 2px;
-  background: red;  /* barrure diagonale quand inactif */
+  background: red;
   transform: translate(-50%, -50%) rotate(45deg);
 }
 
-
-/* --- légende --- */
+/* Légende */
 .legend {
   position: absolute;
   bottom: 18px;
@@ -104,7 +200,7 @@ html, body, #map { margin:0; padding:0; width:100%; height:100%; }
 #legendValues span { position: absolute; top: 0; transform: translateX(-50%); }
 #minValue { left: 0%; } #midValue { left: 50%; } #maxValue { left: 100%; }
 
-/* --- filtre compétences --- */
+/* Filtre compétences */
 #filterContainer {
   position: absolute;
   bottom: 35px;
@@ -120,202 +216,189 @@ html, body, #map { margin:0; padding:0; width:100%; height:100%; }
 #filterContent { padding: 8px; display: block; max-height: 30rem; overflow-y: auto; }
 #filterContent label { display: block; margin: 4px; }
 #filterCheckboxes { max-height: 19.5rem; overflow-y: auto; border:1px solid #ccc; padding:4px; border-radius:4px; background:#fff; }
-#filterDateRange input {  margin-left: auto;margin-right: auto;}
+#filterDateRange input { margin-left:auto;margin-right:auto;}
 
-#pageTitle {
-  flex-shrink: 0;
-  position: absolute;
-  width: 100%;
-  text-align: center;
-  top: 10px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 1000;
-  padding: 6px 12px;
-  border-radius: 6px;
-  font-family: sans-serif;
-  font-size:  clamp(22px, 5vw, 32px);
-  font-weight: bold;
-  color:#4676fccc ;
-  filter: 
-    drop-shadow(-1px -1px 2px rgba(100,100,100,0.3))
-    drop-shadow(1px -1px 2px rgba(100,100,100,0.3))
-    drop-shadow(-1px 1px 2px rgba(100,100,100,0.3))
-    drop-shadow(1px 1px 2px rgba(100,100,100,0.3));
-
-  pointer-events: none; /* ne bloque pas la souris */
-}
-#appContainer {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  height: 100%;
-}
-#mapContainer {
-  position: relative;
-  flex: 1 1 auto;
-  display: flex;
-  width: 100%;
-  height: 100%;
-}
+/* Filtre geo */
 #filterGeo{
-    display:flex;
-    flex-direction: column;
-    row-gap:6px;
-    margin-left: 3px;
-    margin-top: 12px;
-    padding: 0;
+  display:flex;
+  flex-direction: column;
+  row-gap:6px;
+  margin-left: 3px;
+  margin-top: 12px;
+  padding: 0;
+}
+#filterGeo input{ width: 40px; border-radius: 3px; }
 
-}
-#filterGeo input{
-    width: 40px;
-    border-radius: 3px;
-}
+/* Responsive */
 @media (max-width: 600px) {
   #pageTitle {
-    position: relative;   /* passe au flux normal */
+    position: relative;
     top: auto;
     left: auto;
     transform: none;
     text-align: center;
     width: 100%;
-    font-size: 5vw;       /* plus flexible */
+    font-size: 5vw;
     padding: 8px 0;
     margin-bottom: 4px;
     background: rgba(255,255,255,0.8);
   }
-  .legend{
+  .legend {
     left: 10px;
-    right: 10px;      /* ajoute la marge droite */
-    width: auto;       /* width automatique entre left et right */
+    right: 10px;
+    width: auto;
   }
-  #filterContainer{
-    bottom: calc(35px + 40px);
-  }
-  .maplibregl-ctrl-bottom-right{
-    display: none;
-  }
-  #controlsContainer{
-
-    top:10px
-  }
+  #filterContainer { bottom: calc(35px + 40px); }
+  .maplibregl-ctrl-bottom-right{ display: none; }
+  #controlsContainer{ top:10px; }
 }
 @media(max-width:375px){
-  #layerToggle{
-    flex-direction:row-reverse;
-  }
+  #layerToggle{ flex-direction:row-reverse; }
+}
 
-};
+.input-with-unit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;   /* centre horizontalement */
+  font-family: sans-serif;
+  background: rgba(255,255,255,0.8);
+  border: 1px solid rgba(0,0,0,0.3);
+  border-radius: 6px;
+}
+
+.input-with-unit input {
+  width: 100px;           /* largeur confortable */
+  /* padding: 6px 8px; */
+  font-size: 14px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  text-align: center;     /* option : centrer la saisie */
+  box-sizing: border-box;
+}
+
+.input-with-unit .unit {
+  margin-top: 4px;        /* espace entre champ et unité */
+  font-size: 12px;
+  color: #555;
+}
+
 
 
 </style>
+
 </head>
 <body>
-  <div id="appContainer">
-    <div id="pageTitle">Carte Stacks Dev France</div>
-    <div id="mapContainer">
-      <div id="map"></div>     
+  <div id="App">
+    <div id="appContainer">
+        <div id="pageTitle">Carte Stacks Dev France</div>
+        <div id="mapContainer">
+        <div id="map"></div>     
 
-      <!-- Contrôles -->
-      <div id="controlsContainer">
-        <div id="controlsHeader">
-          <img width="100%" height="100%" src="src/icon/Setting.svg" alt="Setting">
+        <!-- Contrôles -->
+        <div id="controlsContainer">
+            <div id="controlsHeader">
+            <img width="100%" height="100%" src="src/icon/Setting.svg" alt="Setting">
+            </div>
+            <div id="controlsContent">
+            <label>Rayon hexagones (m):
+                <input type="range" id="radiusSlider" min="500" max="5000" step="50" value="1000">
+                <span id="radiusValue">1000</span>
+            </label>
+            <label>Hauteur 3D (elevationScale):
+                <input type="range" id="elevationSlider" min="10" max="100" step="5" value="50">
+                <span id="elevationValue">50</span>
+            </label>
+            <label>Coverage extrudé:
+                <input type="range" id="coverageSlider" min="0.1" max="1" step="0.05" value="0.8">
+                <span id="coverageValue">0.8</span>
+            </label>
+            <label>Opacité extrudé:
+                <input type="range" id="hexOpacitySlider" min="0.1" max="1" step="0.05" value="0.8">
+                <span id="hexOpacityValue">0.8</span>
+            </label>
+            <label>Coverage base:
+                <input type="range" id="baseCoverageSlider" min="0.1" max="1" step="0.05" value="1">
+                <span id="baseCoverageValue">1</span>
+            </label>
+            <label>Opacité base:
+                <input type="range" id="baseOpacitySlider" min="0.1" max="1" step="0.05" value="0.5">
+                <span id="baseOpacityValue">0.5</span>
+            </label>
+            <label>Échelle couleur:
+                <select id="scaleMode">
+                <option value="linear">Linéraire</option>
+                <option value="log" selected>Logarithmique</option>
+                </select>
+            </label>
+            <label>Style carte:
+                <select id="styleMode">
+                <option value="dark" selected>Dark</option>
+                <option value="light">Light</option>
+                </select>
+            </label>
+            </div>
         </div>
-        <div id="controlsContent">
-          <label>Rayon hexagones (m):
-            <input type="range" id="radiusSlider" min="500" max="5000" step="50" value="1000">
-            <span id="radiusValue">1000</span>
-          </label>
-          <label>Hauteur 3D (elevationScale):
-            <input type="range" id="elevationSlider" min="10" max="100" step="5" value="50">
-            <span id="elevationValue">50</span>
-          </label>
-          <label>Coverage extrudé:
-            <input type="range" id="coverageSlider" min="0.1" max="1" step="0.05" value="0.8">
-            <span id="coverageValue">0.8</span>
-          </label>
-          <label>Opacité extrudé:
-            <input type="range" id="hexOpacitySlider" min="0.1" max="1" step="0.05" value="0.8">
-            <span id="hexOpacityValue">0.8</span>
-          </label>
-          <label>Coverage base:
-            <input type="range" id="baseCoverageSlider" min="0.1" max="1" step="0.05" value="1">
-            <span id="baseCoverageValue">1</span>
-          </label>
-          <label>Opacité base:
-            <input type="range" id="baseOpacitySlider" min="0.1" max="1" step="0.05" value="0.5">
-            <span id="baseOpacityValue">0.5</span>
-          </label>
-          <label>Échelle couleur:
-            <select id="scaleMode">
-              <option value="linear">Linéraire</option>
-              <option value="log" selected>Logarithmique</option>
-            </select>
-          </label>
-          <label>Style carte:
-            <select id="styleMode">
-              <option value="dark" selected>Dark</option>
-              <option value="light">Light</option>
-            </select>
-          </label>
+    
+
+        <!-- Toggle layers -->
+        <div id="layerToggle">
+            <button id="themeButton" >
+            <svg id="themeIcon" width="100%" height="100%" viewBox="0 0 24 24" fill="orange"></svg>
+            </button>
+            <button id="toggleBase" class="toggle-button active" title="Afficher la base">
+            <img width="100%" height="100%" src="src/icon/Base.svg" alt="Base">
+            </button>
+            <button id="toggleExtrude" class="toggle-button active" title="Afficher la base">
+            <img width="100%" height="100%" src="src/icon/Extrude.svg" alt="Base">
+            </button>
+
+            <!--Filtre Géo-->
+            <div id="filterGeo">
+                <button id="active_circle"></button>
+                <button id="edit_circle"></button>
+                <div class="input-with-unit">
+                    <input type="number" id="cRadiusKm" value="50" min="0" step="1">
+                    <span class="unit">km</span>
+                </div>
+                <!-- <input type="number" min="1" id="cRadiusKm" value="20"> -->
+            </div>
+                
         </div>
-      </div>
-  
 
-  <!-- Toggle layers -->
-  <div id="layerToggle">
-    <button id="themeButton" >
-      <svg id="themeIcon" width="100%" height="100%" viewBox="0 0 24 24" fill="orange"></svg>
-    </button>
-    <button id="toggleBase" class="toggle-button active" title="Afficher la base">
-      <img width="100%" height="100%" src="src/icon/Base.svg" alt="Base">
-    </button>
-    <button id="toggleExtrude" class="toggle-button active" title="Afficher la base">
-      <img width="100%" height="100%" src="src/icon/Extrude.svg" alt="Base">
-    </button>
+        <!-- Légende -->
+        <div class="legend" id="legendContainer">
+            <div id="legendValues">
+            <span id="minValue">0</span>
+            <span id="midValue">0</span>
+            <span id="maxValue">0</span>
+            </div>
+            <div class="legendColorBar" id="legendBar"></div>
+        </div>
 
-    <!--Filtre Géo-->
-    <div id="filterGeo">
-        <button id="active_circle"></button>
-        <button id="edit_circle"></button>
-        <input type="number" min="1" id="cRadiusKm" value="20">
+        <!-- Filtre compétences -->
+        <div id="filterContainer">
+            <div id="filterHeader">Filtres ▾</div>
+            <div id="filterContent">
+                <label id="filterDateRange">Filtre par date :
+                <input type="date" id="minDate">
+                <input type="date" id="maxDate">
+                </label>
+                
+                <label>Mode de filtre:
+                    <select id="filterMode">
+                    <option value="OU">OU</option>
+                    <option value="ET">ET</option>
+                    </select>
+                </label>
+                <div id="filterCheckboxes"></div>
+            </div>
+        </div>
     </div>
-        
-  </div>
-
-  <!-- Légende -->
-  <div class="legend" id="legendContainer">
-    <div id="legendValues">
-      <span id="minValue">0</span>
-      <span id="midValue">0</span>
-      <span id="maxValue">0</span>
     </div>
-    <div class="legendColorBar" id="legendBar"></div>
-  </div>
-
-  <!-- Filtre compétences -->
-  <div id="filterContainer">
-    <div id="filterHeader">Filtres ▾</div>
-    <div id="filterContent">
-        <label id="filterDateRange">Filtre par date :
-        <input type="date" id="minDate">
-        <input type="date" id="maxDate">
-        </label>
-        
-        <label>Mode de filtre:
-            <select id="filterMode">
-            <option value="OU">OU</option>
-            <option value="ET">ET</option>
-            </select>
-        </label>
-        <div id="filterCheckboxes"></div>
+    <div id="calendar-container">
+        <div id="statsCalendar"></div>
     </div>
   </div>
-
-  <!--Géo filtre -->
-
-</div>
-</div>
 
 
 
@@ -440,6 +523,263 @@ function addMapDrag(map){
     map.setPitch(Math.min(60, Math.max(0, startPitch-dy*0.3)));
   });
 }
+
+// Stats Calendar function 
+const ID_DIV="statsCalendar"
+const GAP_MONTH = 5; 
+const D3_COLOR_INTERPOLATORS = [
+  // --- Monochromes ---
+  d3.interpolateBlues,
+  d3.interpolateGreens,
+  d3.interpolateGreys,
+  d3.interpolateOranges,
+  d3.interpolatePurples,
+  d3.interpolateReds,
+
+  // --- Nuances perceptuellement uniformes ---
+  d3.interpolateViridis,
+  d3.interpolateInferno,
+  d3.interpolateMagma,
+  d3.interpolatePlasma,
+  d3.interpolateCividis,
+
+  // --- Couleurs cycliques / arc-en-ciel ---
+  d3.interpolateRainbow,
+  d3.interpolateSinebow,
+
+  // --- Divergentes ---
+  d3.interpolateBrBG,
+  d3.interpolatePRGn,
+  d3.interpolatePiYG,
+  d3.interpolatePuOr,
+  d3.interpolateRdBu,
+  d3.interpolateRdGy,
+  d3.interpolateRdYlBu,
+  d3.interpolateRdYlGn,
+  d3.interpolateSpectral
+];
+
+const COLOR_INTERPOLATOR = d3.interpolateGreens;
+
+function aggregateByDay(data) {
+  const counts = d3.rollup(
+    data,
+    v => v.length,
+    d => d3.utcDay(new Date(d.created))
+  );
+  console.table(Array.from(counts, ([date, value]) => ({ date, value })))
+  return Array.from(counts, ([date, value]) => ({ date, value }));
+}
+
+function prepareData(aggData) {
+  // Crée une Map avec clé = [année, mois, jour], valeur = count
+  const dataMap = new Map(
+    aggData.map(d => {
+      const dt = d.date;
+      const key = [dt.getUTCFullYear(), dt.getUTCMonth() + 1, dt.getUTCDate()].join('-'); // "YYYY-M-D"
+      return [key, d.value];
+    })
+);
+
+  const timeWeek = d3.utcMonday;
+  const jours = ["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"];
+  const processed = [];
+
+  const minDate = d3.min(aggData, d => d.date);
+  const maxDate = d3.max(aggData, d => d.date);
+
+  const startMonth = d3.utcMonth.floor(minDate);
+  const endMonth = d3.utcMonth.ceil(maxDate);
+  const months = d3.utcMonths(startMonth, endMonth);
+
+  months.forEach(month => {
+    const monthStart = d3.utcMonth.floor(month);
+    const monthEnd = d3.utcMonth.offset(monthStart, 1);
+    const days = d3.utcDays(monthStart, monthEnd);
+
+      days.forEach(d => {
+      const key = [d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate()].join('-');
+      const count = dataMap.get(key) || 0;
+      const n_day = (d.getUTCDay() + 6) % 7; // lundi = 0
+      const n_week = timeWeek.count(monthStart, d); 
+      const n_month = d.getUTCMonth() + 1; 
+      const year = d.getUTCFullYear()
+      const label_day = `${d.toLocaleDateString('fr-FR')}: ${count} offres`;
+      processed.push({ date: d, count, n_day, n_week, n_month, year,label_day });
+    });
+  });
+  return processed;
+}
+
+function drawLegend(svg, color, maxVal, cellSize, width, height) {
+  const legendWidth = 200;
+  const legendHeight = 12;
+  const nTicks = 5;
+
+  // Groupe de légende
+  const legend = svg.append("g")
+    .attr("class", "legend")
+    .attr("transform", `translate(${width - legendWidth - 50}, ${height - 40})`);
+
+  // Titre
+  legend.append("text")
+    .attr("x", legendWidth / 2)
+    .attr("y", -5)
+    .attr("text-anchor", "middle")
+    .attr("font-size", "12px")
+    .attr("font-weight", "bold")
+    .text("Nombre d'offres");
+
+  // Dégradé
+  const defs = svg.append("defs");
+  const gradientId = "legend-gradient";
+
+  const gradient = defs.append("linearGradient")
+    .attr("id", gradientId)
+    .attr("x1", "0%")
+    .attr("y1", "0%")
+    .attr("x2", "100%")
+    .attr("y2", "0%");
+
+  gradient.append("stop")
+    .attr("offset", "0%")
+    .attr("stop-color", color(0));
+
+  gradient.append("stop")
+    .attr("offset", "100%")
+    .attr("stop-color", color(maxVal));
+
+  // Rectangle de dégradé
+  legend.append("rect")
+    .attr("x", 0)
+    .attr("y", 0)
+    .attr("width", legendWidth)
+    .attr("height", legendHeight)
+    .style("fill", `url(#${gradientId})`);
+
+  // Échelle en nombre d’offres
+  const legendScale = d3.scaleLinear()
+    .domain([0, maxVal])
+    .range([0, legendWidth]);
+
+  // Génération explicite des ticks pour inclure 0 et maxVal
+  const tickValues = Array.from({length: nTicks}, (_, i) => i * maxVal / (nTicks - 1));
+
+  const legendAxis = d3.axisBottom(legendScale)
+    .tickValues(tickValues)
+    .tickFormat(d3.format("d"));
+
+  legend.append("g")
+    .attr("transform", `translate(0, ${legendHeight})`)
+    .call(legendAxis);
+}
+
+function drawCalendar(data) {
+  const aggData = aggregateByDay(data);
+  const processed = prepareData(aggData);
+
+  let gapRow = 40;//gap row => year
+  let gapColumn = 15;//gap column => month
+  const topPagging = 75
+
+  const cellSize = 17;
+
+  const weeksPerMonth = 5.5;
+  const monthWidth = weeksPerMonth * cellSize +gapColumn
+
+  const width = monthWidth*12+40;
+  const height_row = cellSize * 7 +20
+  // Groupe pas années
+  const groupedByYear = d3.group(processed, d => d.year);
+
+
+
+  const height = groupedByYear.size*height_row+gapRow*(groupedByYear.size-1) +topPagging -20;
+
+  const maxVal = d3.max(processed, d => d.count) || 1;
+  const color = d3.scaleSequential([0, maxVal], COLOR_INTERPOLATOR);
+
+  d3.select(`#${ID_DIV}`).selectAll("*").remove();
+  const svg = d3.select(`#${ID_DIV}`)
+    .append("svg")
+    .attr("width", width)
+    .attr("height", height);
+
+
+  const moisFR = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
+  
+  
+  
+  console.log("groupedByYear",groupedByYear,groupedByYear.size)
+for (const [i, [year, yearDays]] of Array.from(groupedByYear.entries()).entries()) {
+  console.log("Index:", i, "→ Année:", year, "→ Nombre de jours:", yearDays.length);
+}
+  for (const [i, [year, yearDays]] of Array.from(groupedByYear.entries()).entries()){
+      const groupedByMonth = d3.group(yearDays, d => d.n_month);   
+
+      let yOffset=(7*cellSize+gapRow)*(i)
+    for (const [month, days] of groupedByMonth) {
+      let xOffset = (month - 1) * monthWidth + 40;
+      // Cases
+      svg.append("g")
+        .selectAll("rect")
+        .data(days)
+        .join("rect")
+        .attr("class", "day-cell")
+        .attr("width", cellSize - 1)
+        .attr("height", cellSize - 1)
+        .attr("x", d => xOffset + d.n_week * cellSize)
+        .attr("y", d => d.n_day * cellSize + topPagging+yOffset)
+        .attr("fill", d => color(d.count))
+        .append("title")
+        .text(d => d.label_day);
+
+      // Label mois
+
+      const lastX = xOffset + d3.max(days, d => d.n_week) * cellSize;
+      svg.append("text")
+        .attr("class", "month-label")
+        .attr("x", (xOffset+ lastX + cellSize)/2)
+        .attr("y", yOffset+topPagging-10)
+        .attr("text-anchor", "middle")
+        .text(moisFR[month - 1]);
+
+      xOffset += (d3.max(days, d => d.n_week) + 1) * cellSize + GAP_MONTH;
+    }
+
+    // Jours
+    const jours = ["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"];
+    svg.append("g")
+      .selectAll("text")
+      .data(jours)
+      .join("text")
+      .attr("class", "day-label")
+      .attr("x", 35)
+      .attr("y", (d,i) => i*cellSize + cellSize/1.5 + topPagging+yOffset)
+      .text(d => d);
+
+  const cx = 15;
+  const cy =  (height_row/2 )+topPagging + i * (height_row+20)//yOffset + ((7 * cellSize) / 2)*(i+1);
+
+  svg.append("g")
+    .selectAll("text")
+    .data([year])   // <- on transforme l'année en tableau à 1 élément
+    .join("text")
+    .attr("class", "year-label")
+    .attr("x", cx)
+    .attr("y", cy) // centrage vertical
+    .attr("text-anchor", "middel") // centrer horizontalement si besoin
+    .attr("transform", `rotate(-90, ${cx}, ${cy})`)
+    .text(d => d);
+
+
+
+  }
+drawLegend(svg, COLOR_INTERPOLATOR, maxVal, cellSize, 280, 60);
+
+}
+
+
 
 // --- Init ---
 async function main(){
@@ -569,7 +909,7 @@ function applyFilter(data){
     circlePolygon = turf.circle(center, radiusKm, {steps: 64, units: 'kilometers'});
   }
 
-  return data.filter(d=>{
+ const filtered =  data.filter(d=>{
     const stacks = Array.isArray(d.stacks) ? d.stacks : [];
 
     // --- Filtre stacks ---
@@ -589,6 +929,9 @@ function applyFilter(data){
 
     return stackOk && dateOk && geoOk;
   });
+  // --- Met à jour le calendrier ---
+  drawCalendar(filtered);
+  return filtered 
 }
 
 // --- Fonction pour dessiner / mettre à jour le cercle ---
@@ -639,6 +982,7 @@ activeButton.addEventListener('click', () => {
     map.setLayoutProperty('circleLayer', 'visibility', circleVisible ? 'visible' : 'none');
   }
   rebuildOverlayLayers()
+  applyFilter(brutData);   // <-- ajoute ça
 });
 
 // --- Click sur la map pour définir le centre ---
@@ -648,6 +992,7 @@ map.on('click', (e) => {
   drawTurfCircle(circleCenter, circleRadiusKm);
    
   rebuildOverlayLayers();
+  applyFilter(brutData);   // <-- ajoute ça
 });
 
 // --- Mise à jour du rayon ---
@@ -656,7 +1001,8 @@ radiusInput.addEventListener('input', e => {
   circleRadiusKm = parseFloat(e.target.value);
   drawTurfCircle(circleCenter, circleRadiusKm);
 
-  rebuildOverlayLayers()
+  rebuildOverlayLayers();
+  applyFilter(brutData);   // <-- ajoute ça
 });
 
   // --- Affichage Base / Extrude
@@ -705,6 +1051,7 @@ const toggleExtrude = document.getElementById('toggleExtrude');
   document.getElementById('maxDate').addEventListener('change', rebuildOverlayLayers);
 
 }
+
 
 main();
 </script>

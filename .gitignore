@@ -4,5 +4,5 @@
 *.db
 *.ipynb
 /qdrant_local/
-competences.csv
+*.csv
 /OLD/
